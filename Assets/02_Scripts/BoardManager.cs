@@ -1,7 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Sirenix.OdinInspector;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -10,14 +10,12 @@ namespace MarketBalance
 {
     public class BoardManager : MonoBehaviour
     {
-        [SerializeField] private InputHandler _InputHandler;
-        
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
         private Block[,] _blocks;
         
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
-        
+
         [SerializeField] private Vector2Int _GridSize;
         [SerializeField] private Vector2 _TileSize;
         
@@ -26,15 +24,15 @@ namespace MarketBalance
 
         private void Awake()
         {
-            _InputHandler.OnDragStart += MouseClickStart;
-            _InputHandler.OnDragEnd += MouseClickEnd;
-            
             CreateBoard();
         }
         
         [Button, HideInEditorMode]
-        private void CreateBoard () 
+        private void CreateBoard ()
         {
+            // var gridX = _GridSize[0]; // _GridSize.x
+            // var gridY = _GridSize[1]; // _GridSize.y
+            
             _blocks = new Block[_GridSize.x, _GridSize.y];
 
             
@@ -70,7 +68,6 @@ namespace MarketBalance
             return newObject;
         }
         
-        [Button]
         private void RemoveItem(Vector2Int gridPos)
         {
             Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
@@ -80,14 +77,25 @@ namespace MarketBalance
         [Button]
         private void FindEmptySpaces()
         {
+            var count = 0; // To make sure if re-evaluation is necessary
+            
             for (var x = 0; x < _GridSize.x; x++) 
             {
                 for (var y = 0; y < _GridSize.y; y++)
                 {
                     if (_blocks[x, y] != null) continue;
                     DropToEmptySpace(x, y);
+                    count++;
                     break;
                 }
+            }
+            // Refill the new empty spaces
+            StartCoroutine(DoAfter(.5f, RefillTheBoard));
+            
+            // Re-evaluate board
+            if (count > 0)
+            {
+                StartCoroutine(DoAfter(.5f, EvaluateBoard));
             }
         }
         
@@ -114,7 +122,6 @@ namespace MarketBalance
             }
         } 
         
-        [Button]
         private void RefillTheBoard()
         {
             for (var x = 0; x < _GridSize.x; x++)
@@ -135,18 +142,28 @@ namespace MarketBalance
         // Find all 3 or more matches and destroy them
         private void EvaluateBoard()
         {
-            RightFirst(out var theSameBlocks);
-            // UpFirst(out theSameBlocks);
+            var sameBlocks = RightFirst();
+            var newBlocks = UpFirst();
+            
+            foreach (var block in newBlocks)
+            {
+                if (!sameBlocks.Contains(block))
+                    sameBlocks.Add(block);
+            }
 
-            foreach (var block in theSameBlocks)
+            if (!sameBlocks.Any()) return; // Control if no removal needed
+            
+            foreach (var block in sameBlocks)
             {
                 RemoveItem(block.GridPos);
             }
+            // Find and fill new empty spaces 
+            StartCoroutine(DoAfter(.5f, FindEmptySpaces));
         }
 
-        private void RightFirst(out List<Block> sameBlocks)
+        private List<Block> RightFirst()
         {
-            sameBlocks = new List<Block>();
+            var sameBlocks = new List<Block>();
             
             for (var y = 0; y < _GridSize.y; y++)
             {
@@ -189,11 +206,13 @@ namespace MarketBalance
                     }
                 }
             }
+
+            return sameBlocks;
         }
         
-        private void UpFirst(out List<Block> sameBlocks)
+        private List<Block> UpFirst()
         {
-            sameBlocks = new List<Block>();
+            var sameBlocks = new List<Block>();
             
             for (var x = 0; x < _GridSize.x; x++)
             {
@@ -236,6 +255,8 @@ namespace MarketBalance
                     }
                 }
             }
+
+            return sameBlocks;
         }
 
         private List<Block> FloodFill(int x, int y)
@@ -289,202 +310,27 @@ namespace MarketBalance
 
             return _blocks[pos.x, pos.y];
         }
-
-        private void MouseClickStart(Vector3 mousePos)
+        
+        public void SwapBlocks(Vector3 mouseStartPos, Vector2Int swipeDir)
         {
-            if (Camera.main is null) return;
+            // To find the first block
+            if (Camera.main is null) return;    
+            var ray = Camera.main.ScreenPointToRay(mouseStartPos);
             
-            var ray = Camera.main.ScreenPointToRay(mousePos);
-
             if (!Physics.Raycast(ray, out var hit)) return;
             _firstBlockOfSwipe = hit.collider.GetComponent<Block>();
-                
-            if (_firstBlockOfSwipe)
-            {
-                Debug.Log("First block gridpos: " + _firstBlockOfSwipe.GridPos);
-            }
-        }
+            Debug.Log("First block grid pos: " + _firstBlockOfSwipe.GridPos);
 
-        private void MouseClickEnd(Vector3 mousePos)
-        {
-            var dir = GetSwipeDirection(mousePos.x, mousePos.y);
-            var lastBlockPos = _firstBlockOfSwipe.GridPos + dir;
-            
+            // To find the last block( or second :) )
+            var lastBlockPos = _firstBlockOfSwipe.GridPos + swipeDir;   
             _lastBlockOfSwipe = _blocks[lastBlockPos.x, lastBlockPos.y];
+            Debug.Log("Last block grid pos: " + _lastBlockOfSwipe.GridPos);
             
-            Debug.Log("Last block gridpos: " + _lastBlockOfSwipe.GridPos);
+            // Now we actually move them
+            MoveSwipedBlocks(); 
             
-            MoveSwipedBlocks();
-            
-            /*var firstCheck = CheckMatchForFirstBlock(out var sameBlocks);
-            var secondCheck = CheckMatchForSecondBlock();
-
-            if (firstCheck || secondCheck)
-            {
-                MoveSwipedBlocks();
-            }*/
-        }
-
-        private Vector2Int GetSwipeDirection(float x, float y)
-        {
-            switch (x >= 0)
-            {
-                case true when y >= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.right;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.up;
-                    break;
-                }
-                case true when y <= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.right;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.down;
-                    break;
-                }
-            }
-            switch (x <= 0)
-            {
-                case true when y <= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.left;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.down;
-                    break;
-                }
-                case true when y >= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.left;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.up;
-                    break;
-                }
-            }
-            return Vector2Int.zero;
-        }
-        
-        private bool CheckMatchForFirstBlock(out List<Block> sameBlocks)
-        {
-            var x = _lastBlockOfSwipe.GridPos.x;
-            var y = _lastBlockOfSwipe.GridPos.y;
-            
-            HorizontalCheckFirst(x, y, out sameBlocks);
-            VerticalCheckFirst(out sameBlocks);
-            
-            return false;
-        }
-        private bool CheckMatchForSecondBlock()
-        {
-            return false;
-        }
-        
-        private void HorizontalCheckFirst(int x, int y, out List<Block> sameBlocks)
-        {
-            sameBlocks = new List<Block>();
-            
-            if (!sameBlocks.Contains(_blocks[x, y]))
-                sameBlocks.Add(_blocks[x, y]);
-            
-            var count = 1;
-            var currentBlock = _blocks[x, y];
-            
-            for (var i = x; i < _GridSize.x; i++) // For Right
-            {
-
-                var blockToCheck = _blocks[i, y];
-
-                if (currentBlock.Type == blockToCheck.Type)
-                {
-                    if (sameBlocks.Contains(blockToCheck))
-                    {
-                        sameBlocks.Add(blockToCheck);
-                    }
-
-                    count++;
-                    currentBlock = blockToCheck;
-                }
-                else
-                    break;
-            }
-
-            if (count >= 3)
-                goto Finish;
-
-            for (var i = x; i >= 0 ; i--) //  For Left
-            {
-                
-                var blockToCheck = _blocks[i, y];
-
-                if (currentBlock.Type == blockToCheck.Type)
-                {
-                    if (sameBlocks.Contains(blockToCheck))
-                    {
-                        sameBlocks.Add(blockToCheck);
-                    }
-
-                    currentBlock = blockToCheck;
-                }
-                else
-                    break;
-            }
-
-            Finish:
-                FloodFill(x, y);
-        }
-        private void VerticalCheckFirst(out List<Block> sameBlocks)
-        {
-            sameBlocks = new List<Block>();/*
-            
-            for (var x = 0; x < _GridSize.x; x++)
-            {
-                for (var y = 0; y < _GridSize.y; y++)
-                {
-                    // Skip unnecessary blocks
-                    if (y > _GridSize.y - _MatchCount)
-                        continue;
-
-                    var currentBlock = _blocks[x, y];
-
-                    // Skip if block already is found
-                    if (sameBlocks.Contains(currentBlock))
-                        continue;
-
-                    // Check if next matchCount - 1 blocks are the same
-                    var isAllMatch = true;
-                    for (var i = 1; i < _MatchCount; i++)
-                    {
-                        var blockToCheck = _blocks[x, y + i];
-
-                        var isMatch = currentBlock.Type == blockToCheck.Type;
-                        isAllMatch = isMatch;
-                        if (!isMatch) break;
-                    }
-
-                    if (isAllMatch)
-                    {
-                        // Run Flood fill algorithm and add all blocks (including the root) to the sameBlocks list.
-
-                        sameBlocks.Add(currentBlock);
-
-                        var newBlocks = FloodFill(x, y);
-
-                        foreach (var block in newBlocks)
-                        {
-                            if (!sameBlocks.Contains(block))
-                                sameBlocks.Add(block);
-                        }
-                    }
-                }
-            }*/
+            // Time to check if they have match
+            StartCoroutine(CheckMatch(1.5f));
         }
         
         private void MoveSwipedBlocks()
@@ -497,11 +343,27 @@ namespace MarketBalance
             
             // Then change the world positions
             _firstBlockOfSwipe.transform.position = GetWorldPosForGridPos(lastGridPos.x, lastGridPos.y);
-            _lastBlockOfSwipe.transform.position = GetWorldPosForGridPos(firstGridPos.x, firstGridPos.y);
+            _lastBlockOfSwipe.transform.position = GetWorldPosForGridPos(firstGridPos.x, firstGridPos.y);;
 
             // Last but not least: actually changing board array
             _blocks[firstGridPos.x, firstGridPos.y] = _lastBlockOfSwipe;
             _blocks[lastGridPos.x, lastGridPos.y] = _firstBlockOfSwipe;
+        }
+
+        private IEnumerator CheckMatch(float waitTime)
+        {
+            yield return new WaitForSeconds(waitTime);
+            if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
+            {
+                MoveSwipedBlocks(); // It'll make the same transitions between the two blocks.
+            }
+        }
+
+        private IEnumerator DoAfter(float waitTime, Action callback)
+        {
+            yield return new WaitForSeconds(waitTime);
+            
+            callback?.Invoke();
         }
     }
 }

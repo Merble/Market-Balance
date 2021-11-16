@@ -423,7 +423,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a96e3b399532cf4f87405978682df73, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _InputHandler: {fileID: 1838864217}
   _BlockPrefabs:
   - {fileID: -8170245590420056757, guid: 0b24e28f62fe5744597ced9e44f96269, type: 3}
   - {fileID: -7122149760732710217, guid: 64f70b8683b3a964f965e1961391c940, type: 3}
@@ -456,6 +455,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1838864218}
   - component: {fileID: 1838864217}
+  - component: {fileID: 1838864219}
   m_Layer: 0
   m_Name: Input Handler
   m_TagString: Untagged
@@ -489,6 +489,20 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1838864219
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1838864216}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a6d168fa7d4aa747967a923fab3ece7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _InputHandler: {fileID: 1838864217}
+  _BoardManager: {fileID: 1615679674}
 --- !u!1 &2135113911
 GameObject:
   m_ObjectHideFlags: 0
