@@ -71,7 +71,7 @@ namespace MarketBalance
         private void RemoveItem(Vector2Int gridPos)
         {
             Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
-            //_blocks[gridPos.x, gridPos.y] = null;
+            _blocks[gridPos.x, gridPos.y] = null;
         }
         
         [Button]
@@ -117,7 +117,8 @@ namespace MarketBalance
                     _blocks[posX, newYPos] = block;
                     _blocks[posX, y] = null;
                     _blocks[posX, newYPos].GridPos = new Vector2Int(posX, newYPos);
-                    _blocks[posX, newYPos].transform.position = GetWorldPosForGridPos(posX, newYPos);
+
+                    LeanTween.move(_blocks[posX, newYPos].gameObject, GetWorldPosForGridPos(posX, newYPos), 0.4f);
                 }
             }
         } 
@@ -155,7 +156,8 @@ namespace MarketBalance
             
             foreach (var block in sameBlocks)
             {
-                RemoveItem(block.GridPos);
+                StartCoroutine(DoAfter(.3f, () => RemoveItem(block.GridPos)));
+                //RemoveItem(block.GridPos);
             }
             // Find and fill new empty spaces 
             StartCoroutine(DoAfter(.5f, FindEmptySpaces));
@@ -327,10 +329,15 @@ namespace MarketBalance
             Debug.Log("Last block grid pos: " + _lastBlockOfSwipe.GridPos);
             
             // Now we actually move them
-            MoveSwipedBlocks(); 
+            MoveSwipedBlocks();
+
+            StartCoroutine(DoAfter(0.5f, EvaluateBoard)); 
             
             // Time to check if they have match
-            StartCoroutine(CheckMatch(1.5f));
+            if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
+            {
+                StartCoroutine(DoAfter(.5f, MoveSwipedBlocks));  // It'll make the same transitions between the two blocks after the waiting time.
+            }
         }
         
         private void MoveSwipedBlocks()
@@ -343,22 +350,13 @@ namespace MarketBalance
             
             // Then change the world positions
             _firstBlockOfSwipe.transform.position = GetWorldPosForGridPos(lastGridPos.x, lastGridPos.y);
-            _lastBlockOfSwipe.transform.position = GetWorldPosForGridPos(firstGridPos.x, firstGridPos.y);;
-
+            _lastBlockOfSwipe.transform.position = GetWorldPosForGridPos(firstGridPos.x, firstGridPos.y);
+            
             // Last but not least: actually changing board array
             _blocks[firstGridPos.x, firstGridPos.y] = _lastBlockOfSwipe;
             _blocks[lastGridPos.x, lastGridPos.y] = _firstBlockOfSwipe;
         }
-
-        private IEnumerator CheckMatch(float waitTime)
-        {
-            yield return new WaitForSeconds(waitTime);
-            if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
-            {
-                MoveSwipedBlocks(); // It'll make the same transitions between the two blocks.
-            }
-        }
-
+        
         private IEnumerator DoAfter(float waitTime, Action callback)
         {
             yield return new WaitForSeconds(waitTime);
