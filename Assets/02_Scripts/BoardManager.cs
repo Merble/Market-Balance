@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Sirenix.OdinInspector;
 using UnityEngine;
-using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
 namespace MarketBalance
@@ -16,11 +15,12 @@ namespace MarketBalance
 
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
+        
+        public delegate void OrderEvent(OrderType order);
+        public event OrderEvent OnOrderService;
 
         [SerializeField] private Vector2Int _GridSize;
         [SerializeField] private Vector2 _TileSize;
-        
-        
         [SerializeField] private int _MatchCount = 3;
         
         private bool _isInputAllowed;
@@ -29,16 +29,12 @@ namespace MarketBalance
         private void Awake()
         {
             _isInputAllowed = true;
-            //CreateBoard();
+            CreateBoard();
         }
         
         private void CreateBoard ()
         {
-            // var gridX = _GridSize[0]; // _GridSize.x
-            // var gridY = _GridSize[1]; // _GridSize.y
-            
             _blocks = new Block[_GridSize.x, _GridSize.y];
-
             
             for (var x = 0; x < _GridSize.x; x++) 
             {
@@ -158,8 +154,7 @@ namespace MarketBalance
         }
 
         [Button]
-        // Find all 3 or more matches and destroy them
-        private void EvaluateBoard()
+        private void EvaluateBoard()       // Find all 3 or more matches and destroy them
         {
             _isInputAllowed = false;
             
@@ -177,9 +172,17 @@ namespace MarketBalance
                 _isInputAllowed = true;
                 return;
             }
-
+            
             StartCoroutine(DoAfter(.2f, () =>
             {
+                // Emit events for removed block types
+                var uniqueBlockTypes = sameBlocks.Select(block => block.OrderType).Distinct();
+                foreach (var uniqueBlockType in uniqueBlockTypes)
+                {
+                    OnOrderService?.Invoke(uniqueBlockType);
+                }
+
+                // Remove blocks
                 foreach (var block in sameBlocks)
                 {
                     RemoveItem(block.GridPos);
@@ -189,7 +192,7 @@ namespace MarketBalance
             // Find and fill new empty spaces 
             StartCoroutine(DoAfter(.6f, FindEmptySpaces));
         }
-
+        
         private List<Block> RightFirst()
         {
             var sameBlocks = new List<Block>();
@@ -214,7 +217,7 @@ namespace MarketBalance
                     {
                         var blockToCheck = _blocks[x + i, y];
 
-                        var isMatch = currentBlock.Type == blockToCheck.Type;
+                        var isMatch = currentBlock.OrderType == blockToCheck.OrderType;
                         isAllMatch = isMatch;
                         if (!isMatch) break;
                     }
@@ -235,7 +238,6 @@ namespace MarketBalance
                     }
                 }
             }
-
             return sameBlocks;
         }
         
@@ -263,7 +265,7 @@ namespace MarketBalance
                     {
                         var blockToCheck = _blocks[x, y + i];
 
-                        var isMatch = currentBlock.Type == blockToCheck.Type;
+                        var isMatch = currentBlock.OrderType == blockToCheck.OrderType;
                         isAllMatch = isMatch;
                         if (!isMatch) break;
                     }
@@ -284,7 +286,6 @@ namespace MarketBalance
                     }
                 }
             }
-
             return sameBlocks;
         }
 
@@ -321,12 +322,11 @@ namespace MarketBalance
                 {
                     if (lookupList.Contains(neighbor)) continue;
                     if (blockList.Contains(neighbor)) continue;
-                    if (neighbor.Type != lookupBlock.Type) continue;
+                    if (neighbor.OrderType != lookupBlock.OrderType) continue;
                     
                     lookupList.Add(neighbor);
                 }
             }
-
             return blockList;
         }
 
@@ -343,18 +343,15 @@ namespace MarketBalance
         public void SwapBlocks(Vector2Int firstGridPos, Vector2Int swipeDir)
         {
             _firstBlockOfSwipe = _blocks[firstGridPos.x, firstGridPos.y];
-            Debug.Log("First block grid pos: " + _firstBlockOfSwipe.GridPos);
 
-            // To find the last block( or second :) )
             var lastGridPos = _firstBlockOfSwipe.GridPos + swipeDir;
             
             if (( (lastGridPos.x < 0) || (lastGridPos.x >= _GridSize.x) || (lastGridPos.y < 0) ||
                   (lastGridPos.y >= _GridSize.y) ))    return;
             
             _lastBlockOfSwipe = _blocks[lastGridPos.x, lastGridPos.y];
-            Debug.Log("Last block grid pos: " + _lastBlockOfSwipe.GridPos);
             
-            // Now we actually move them
+            // Move the chosen blocks
             MoveSwipedBlocks();
 
             StartCoroutine(DoAfter(0.1f, EvaluateBoard));
@@ -364,7 +361,6 @@ namespace MarketBalance
             {
                 if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
                 {
-                    //StartCoroutine(DoAfter(1.5f, MoveSwipedBlocks));  // It'll make the same transitions between the two blocks after the waiting time.
                     MoveSwipedBlocks();
                 }
             }));

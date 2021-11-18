@@ -4,13 +4,6 @@ using Random = UnityEngine.Random;
 
 namespace MarketBalance
 {
-    public enum OrderType
-    {
-        Yellow,
-        Blue,
-        Black,
-        Green
-    }
     public class Customer : MonoBehaviour
     {
         [SerializeField] private OrderType _Order;

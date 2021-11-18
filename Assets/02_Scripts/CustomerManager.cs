@@ -1,32 +1,36 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Sirenix.OdinInspector;
 using UnityEngine;
 using UnityEngine.Serialization;
-using UnityEngine.UI;
 using Random = UnityEngine.Random;
 
 namespace MarketBalance
 {
     public class CustomerManager : MonoBehaviour
     {
+        private const float MoveDuration = 0.4f;
+        
+        public event BoardManager.OrderEvent OnOrderChange;
+        
         [SerializeField] private Customer[] _CustomerPrefabs = new Customer[1];
+        [SerializeField] private int _CustomerList;
+        [SerializeField] private int _CustomersToAdd;
         
-        private List<Customer> _customers = new List<Customer>();
-        //private Customer[] _customers = new Customer[6];
+        private readonly List<Customer> _customers = new List<Customer>();
         
-        // Linq
         private List<OrderType> OrderList => _customers.Select(customer => customer.Order).ToList();
         
-        // public delegate void OrderEvent();
-        // public event OrderEvent DidOrderMatch;
-        
-        private static float _MoveDuration = 0.4f;
-        
-        [SerializeField] private int _CustomerListNumber;
-        
-        [SerializeField] private int _AllCustomerNumber;
+        public OrderType? FirstOrder
+        {
+            get
+            {
+                if (!OrderList.Any()) return null;
+                return OrderList[0];
+            }
+        }
 
         private void Awake()
         {
@@ -35,7 +39,7 @@ namespace MarketBalance
         
         private void CreateCustomerLine()
         {
-            for (var y = 0; y < _CustomerListNumber; y++)
+            for (var y = 0; y < _CustomerList; y++)
             {
                 CreateRandomCustomerAtPos(y);
             }
@@ -45,14 +49,14 @@ namespace MarketBalance
             var newCustomer = CreateRandomCustomer();
             _customers.Add(newCustomer);
 
-            newCustomer.transform.position = GetWorldPosFromArrayPos(y);
+            newCustomer.transform.position = GetWorldPosition(y);
         }
         
-        private Vector3 GetWorldPosFromArrayPos(int y)
+        private Vector3 GetWorldPosition(int index)
         {
             var startPosition = transform.position;
 
-            return startPosition + new Vector3(0, 0,  -y);
+            return startPosition + new Vector3(0, 0,  -index);
         }
         
         private Customer CreateRandomCustomer()
@@ -64,87 +68,60 @@ namespace MarketBalance
         }
         
         [Button]
-        private void SetCustomerLine()
-        {
-            MoveCustomersInLine();
-            // for (var y = 0; y < _CustomerListNumber; y++)
-            // {
-            //     if (_customers[y] != null) continue;
-            //     
-            //     MoveCustomersInLine(y);
-            //     break;
-            // }
-        }
-        [Button]
         private void AddCustomers()
         {
-            for (var y = _customers.Count; y < _CustomerListNumber; y++)
+            for (var y = _customers.Count; y < _CustomerList; y++)
             {
+                if (_CustomersToAdd <= 0)
+                    break;
+                
+                _CustomersToAdd--;
                 CreateRandomCustomerAtPos(y);
             }
-            
-            /*for (var y = 0; y < _CustomerListNumber; y++)
-            {
-                var customer = _customers[y];
-                    
-                if (!customer)
-                {
-                    CreateRandomCustomerAtPos(y);
-                }
-            }*/
+            OnOrderChange?.Invoke(_customers[0].Order);
         }
-        private void MoveCustomersInLine()
+        private void UpdateCustomerPositions()
         {
-            foreach (var customer in _customers)
+            for (var index = 0; index < _customers.Count; index++)
             {
-                LeanTween.move(customer.gameObject, customer.transform.position + new Vector3(0, 0, 1), _MoveDuration);
+                var customer = _customers[index];
+                var pos = GetWorldPosition(index);
+                LeanTween.move(customer.gameObject, pos, MoveDuration);
             }
-            
-            /*var nullCount = 0;
-            
-            for (var y = yPos; y < _CustomerListNumber; y++)
-            {
-                var customer = _customers[y];
-                
-                if (customer == null)
-                {
-                    nullCount++;
-                }
-                else
-                {
-                    var newYPos = y - nullCount;
-                    _customers[newYPos] = customer;
-                    _customers[y] = null;
-
-                    //_customerList[newYPos].ArrayPos = newYPos;
-                    
-                    LeanTween.move(_customers[newYPos].gameObject, GetWorldPosFromArrayPos(newYPos), _MoveDuration);
-                }
-            }*/
         }
         
         [Button]
-        private void RemoveCustomerAtPos()
+        public void RemoveFirstCustomer()
         {
             Destroy(_customers[0].gameObject);
             _customers.RemoveAt(0);
-        }
-        
-        [Button]
-        private void GetOrderList()
-        {
-            for (var y = 0; y < _CustomerListNumber; y++)
+            
+            if (!_customers.Any())
             {
-                Debug.Log(OrderList[y]);
+                // TODO: Emit event to notify end of customers
+                Debug.Log("Customers ended.");
+                return;
+            }
+            
+            OnOrderChange?.Invoke(_customers[0].Order);
+            
+            StartCoroutine(DoAfter(.5f, UpdateCustomerPositions));
+        }
+
+        [Button]
+        private void LogOrderList()
+        {
+            foreach (var order in OrderList)
+            {
+                Debug.Log(order);
             }
         }
         
-        // private void SetOrderList()
-        // {
-        //     for (var y = 0; y < _CustomerListNumber; y++)
-        //     {
-        //         
-        //     }
-        // }
+        private IEnumerator DoAfter(float waitTime, Action callback)
+        {
+            yield return new WaitForSeconds(waitTime);
+            
+            callback?.Invoke();
+        }
     }
 }

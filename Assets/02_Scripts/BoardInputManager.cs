@@ -1,7 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using Sirenix.OdinInspector;
 using UnityEngine;
 
 namespace MarketBalance
@@ -45,56 +41,9 @@ namespace MarketBalance
         private Vector2Int GetSwipeDirection(float x, float y)
         {
             var isHorizontal = Mathf.Abs(x) > Mathf.Abs(y);
+
+            return isHorizontal ? new Vector2Int(Mathf.RoundToInt(Mathf.Sign(x)), 0) : new Vector2Int(0, Mathf.RoundToInt(Mathf.Sign(y)));
             
-            if (isHorizontal)
-            {
-                return new Vector2Int(Mathf.RoundToInt(Mathf.Sign(x)), 0);
-            }
-            return new Vector2Int(0, -Mathf.RoundToInt(Mathf.Sign(x)));
-            
-            /*switch (x >= 0)
-            {
-                case true when y >= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.right;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.up;
-                    break;
-                }
-                case true when y <= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.right;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.down;
-                    break;
-                }
-            }
-            switch (x <= 0)
-            {
-                case true when y <= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.left;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.down;
-                    break;
-                }
-                case true when y >= 0:
-                {
-                    if (Mathf.Abs(x) > Mathf.Abs(y))
-                        return Vector2Int.left;
-
-                    if (Mathf.Abs(x) < Mathf.Abs(y))
-                        return Vector2Int.up;
-                    break;
-                }
-            }
-            return Vector2Int.zero;*/
         }
     }
 }

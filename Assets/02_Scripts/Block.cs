@@ -1,23 +1,13 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace MarketBalance
 {
-    public enum BlockType
-    {
-        Yellow,
-        Blue,
-        Black,
-        Green
-    }
-    
     public class Block : MonoBehaviour
     {
-        [SerializeField] private BlockType _Type;
+        [FormerlySerializedAs("_Type")] [SerializeField] private OrderType _OrderType;
 
-        public BlockType Type => _Type;
+        public OrderType OrderType => _OrderType;
 
         public Vector2Int GridPos { get; set; }
         
