@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sirenix.OdinInspector;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
 namespace MarketBalance
@@ -12,7 +13,7 @@ namespace MarketBalance
     {
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
         private Block[,] _blocks;
-        
+
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
 
@@ -21,13 +22,16 @@ namespace MarketBalance
         
         
         [SerializeField] private int _MatchCount = 3;
-
+        
+        private bool _isInputAllowed;
+        public bool İsInputAllowed => _isInputAllowed;
+        
         private void Awake()
         {
-            CreateBoard();
+            _isInputAllowed = true;
+            //CreateBoard();
         }
         
-        [Button, HideInEditorMode]
         private void CreateBoard ()
         {
             // var gridX = _GridSize[0]; // _GridSize.x
@@ -49,9 +53,11 @@ namespace MarketBalance
         {
             var newBlock = CreateRandomBlock();
             _blocks[x, y] = newBlock;
+            
             newBlock.GridPos = new Vector2Int(x, y);
             newBlock.transform.position = GetWorldPosForGridPos(x, y);
             
+            LeanTween.scale(newBlock.gameObject, Vector3.one * .8f, .2f);
         }
 
         private Vector3 GetWorldPosForGridPos(int x, int y)
@@ -63,15 +69,23 @@ namespace MarketBalance
 
         private Block CreateRandomBlock()
         {
-            var randomProductPrefab = _BlockPrefabs[Random.Range(0, _BlockPrefabs.Length)];
-            var newObject = Instantiate(randomProductPrefab, transform, true);
+            var randomBlockPrefab = _BlockPrefabs[Random.Range(0, _BlockPrefabs.Length)];
+            var newObject = Instantiate(randomBlockPrefab, transform, true);
+            
+            newObject.transform.localScale = Vector3.one / 6f;
+            
             return newObject;
         }
         
         private void RemoveItem(Vector2Int gridPos)
         {
-            Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
-            _blocks[gridPos.x, gridPos.y] = null;
+            LeanTween.scale(_blocks[gridPos.x, gridPos.y].gameObject, Vector3.one / 6f, .2f);
+            
+            StartCoroutine(DoAfter(.2f, () =>
+            {
+                Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
+                _blocks[gridPos.x, gridPos.y] = null;
+            }));
         }
         
         [Button]
@@ -90,12 +104,16 @@ namespace MarketBalance
                 }
             }
             // Refill the new empty spaces
-            StartCoroutine(DoAfter(.5f, RefillTheBoard));
+            StartCoroutine(DoAfter(.8f, RefillTheBoard));
             
             // Re-evaluate board
             if (count > 0)
             {
-                StartCoroutine(DoAfter(.5f, EvaluateBoard));
+                StartCoroutine(DoAfter(1.5f, EvaluateBoard));
+            }
+            else
+            {
+                _isInputAllowed = true;
             }
         }
         
@@ -143,6 +161,8 @@ namespace MarketBalance
         // Find all 3 or more matches and destroy them
         private void EvaluateBoard()
         {
+            _isInputAllowed = false;
+            
             var sameBlocks = RightFirst();
             var newBlocks = UpFirst();
             
@@ -152,15 +172,22 @@ namespace MarketBalance
                     sameBlocks.Add(block);
             }
 
-            if (!sameBlocks.Any()) return; // Control if no removal needed
-            
-            foreach (var block in sameBlocks)
+            if (!sameBlocks.Any())  // Control if no removal needed
             {
-                StartCoroutine(DoAfter(.3f, () => RemoveItem(block.GridPos)));
-                //RemoveItem(block.GridPos);
+                _isInputAllowed = true;
+                return;
             }
+
+            StartCoroutine(DoAfter(.2f, () =>
+            {
+                foreach (var block in sameBlocks)
+                {
+                    RemoveItem(block.GridPos);
+                }
+            }));
+            
             // Find and fill new empty spaces 
-            StartCoroutine(DoAfter(.5f, FindEmptySpaces));
+            StartCoroutine(DoAfter(.6f, FindEmptySpaces));
         }
 
         private List<Block> RightFirst()
@@ -313,33 +340,35 @@ namespace MarketBalance
             return _blocks[pos.x, pos.y];
         }
         
-        public void SwapBlocks(Vector3 mouseStartPos, Vector2Int swipeDir)
+        public void SwapBlocks(Vector2Int firstGridPos, Vector2Int swipeDir)
         {
-            // To find the first block
-            if (Camera.main is null) return;    
-            var ray = Camera.main.ScreenPointToRay(mouseStartPos);
-            
-            if (!Physics.Raycast(ray, out var hit)) return;
-            _firstBlockOfSwipe = hit.collider.GetComponent<Block>();
+            _firstBlockOfSwipe = _blocks[firstGridPos.x, firstGridPos.y];
             Debug.Log("First block grid pos: " + _firstBlockOfSwipe.GridPos);
 
             // To find the last block( or second :) )
-            var lastBlockPos = _firstBlockOfSwipe.GridPos + swipeDir;   
-            _lastBlockOfSwipe = _blocks[lastBlockPos.x, lastBlockPos.y];
+            var lastGridPos = _firstBlockOfSwipe.GridPos + swipeDir;
+            
+            if (( (lastGridPos.x < 0) || (lastGridPos.x >= _GridSize.x) || (lastGridPos.y < 0) ||
+                  (lastGridPos.y >= _GridSize.y) ))    return;
+            
+            _lastBlockOfSwipe = _blocks[lastGridPos.x, lastGridPos.y];
             Debug.Log("Last block grid pos: " + _lastBlockOfSwipe.GridPos);
             
             // Now we actually move them
             MoveSwipedBlocks();
 
-            StartCoroutine(DoAfter(0.5f, EvaluateBoard)); 
+            StartCoroutine(DoAfter(0.1f, EvaluateBoard));
             
             // Time to check if they have match
-            if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
+            StartCoroutine(DoAfter(1f, () =>
             {
-                StartCoroutine(DoAfter(.5f, MoveSwipedBlocks));  // It'll make the same transitions between the two blocks after the waiting time.
-            }
+                if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
+                {
+                    //StartCoroutine(DoAfter(1.5f, MoveSwipedBlocks));  // It'll make the same transitions between the two blocks after the waiting time.
+                    MoveSwipedBlocks();
+                }
+            }));
         }
-        
         private void MoveSwipedBlocks()
         {
             // First make sure to store GridPos change infos

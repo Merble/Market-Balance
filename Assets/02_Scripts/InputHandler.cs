@@ -7,15 +7,15 @@ namespace MarketBalance
 {
     public class InputHandler : MonoBehaviour
     {
-        private bool _wasDown;
-        
-        private Vector3 _lastMousePosition;
-        private Vector3  _mousePos;
-        
         public delegate void DragEvent(Vector3 deltaInput);
 
         public event DragEvent OnDragStart;
         public event DragEvent OnDragEnd;
+        
+        private Vector3 _lastMousePosition;
+        private Vector3  _mousePos;
+        
+        private bool _wasDown;
             
         void Update()
         {

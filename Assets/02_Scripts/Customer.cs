@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace MarketBalance
 {
-    public enum Order
+    public enum OrderType
     {
         Yellow,
         Blue,
@@ -13,11 +13,13 @@ namespace MarketBalance
     }
     public class Customer : MonoBehaviour
     {
-        [SerializeField] private Order _Order;
-
+        [SerializeField] private OrderType _Order;
+        
+        public OrderType Order => _Order;
+        
         private void Awake()
         {
-            _Order = (Order) Random.Range( 0, Enum.GetNames(typeof(Order)).Length);
+            _Order = (OrderType) Random.Range( 0, Enum.GetNames(typeof(OrderType)).Length);
         }
     }
 }

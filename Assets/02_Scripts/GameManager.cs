@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,16 +7,18 @@ namespace MarketBalance
 {
     public class GameManager : MonoBehaviour
     {
-        // Start is called before the first frame update
-        void Start()
-        {
+        [SerializeField] private CustomerManager _CustomerManager;
+        [SerializeField] private BoardManager _BoardManager;
         
+
+        private void Awake()
+        {
+            //_CustomerManager.DidOrderMatch += OnOrderMatch;
         }
 
-        // Update is called once per frame
-        void Update()
+        private void OnOrderMatch()
         {
-        
+            
         }
     }
 }
