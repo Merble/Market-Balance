@@ -10,24 +10,31 @@ namespace MarketBalance
 {
     public class BoardManager : MonoBehaviour
     {
+        public delegate void OrderEvent(OrderType order);
+        public event OrderEvent OnOrderService;
+        public event Action OnAutoServiceStop;
+        
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
+        [SerializeField] private Vector2 _TileSize;
+        [SerializeField] private int _MatchCount = 3;
+        [SerializeField] private Vector2Int _GridSize;
+        [Space]
+        [SerializeField] private float _BlockDropDuration = .4f;
+
+        [SerializeField] private float _BlockCreationDuration = .2f;
+        
         private Block[,] _blocks;
-        public Block[,] Blocks => _blocks;
 
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
         
-        public delegate void OrderEvent(OrderType order);
-        public event OrderEvent OnOrderService;
-        public event Action OnAutoServiceStop;
-
-        [SerializeField] private Vector2 _TileSize;
-        [SerializeField] private int _MatchCount = 3;
-        [SerializeField] private Vector2Int _GridSize;
         public int MatchCount => _MatchCount;
+        
         public Vector2Int GridSize => _GridSize;
         
         public bool IsInputAllowed { get; private set; }
+        
+        public Block[,] Blocks => _blocks;
 
         private void Awake()
         {
@@ -43,20 +50,23 @@ namespace MarketBalance
             {
                 for (var y = 0; y < _GridSize.y; y++)
                 {
-                    CreateRandomBlockAtPos(x, y);
+                    CreateRandomBlockAtPos(x, y, false);
                 }
             }
         }
-        
-        private void CreateRandomBlockAtPos(int x, int y)
+        private void CreateRandomBlockAtPos(int x, int y, bool isAnimated)
         {
-            var newBlock = CreateRandomBlock();
+            var newBlock = GetRandomBlock();
             _blocks[x, y] = newBlock;
             
             newBlock.GridPos = new Vector2Int(x, y);
             newBlock.transform.position = GetWorldPosForGridPos(x, y);
             
-            LeanTween.scale(newBlock.gameObject, Vector3.one * .8f, .2f);
+            if(isAnimated)
+            {
+                newBlock.transform.localScale = Vector3.one / 6f;
+                LeanTween.scale(newBlock.gameObject, Vector3.one * .9f, _BlockCreationDuration);
+            }
         }
 
         private Vector3 GetWorldPosForGridPos(int x, int y)
@@ -66,57 +76,43 @@ namespace MarketBalance
             return startPosition + new Vector3(_TileSize.x * x, 0, _TileSize.y * y);
         }
 
-        private Block CreateRandomBlock()
+        private Block GetRandomBlock()
         {
             var randomBlockPrefab = _BlockPrefabs[Random.Range(0, _BlockPrefabs.Length)];
             var newObject = Instantiate(randomBlockPrefab, transform, true);
             
-            newObject.transform.localScale = Vector3.one / 6f;
-            
             return newObject;
         }
         
-        private void RemoveItem(Vector2Int gridPos)
+        private void RemoveItem(Vector2Int gridPos, bool isAnimated)
         {
-            LeanTween.scale(_blocks[gridPos.x, gridPos.y].gameObject, Vector3.one / 6f, .2f);
-            
-            StartCoroutine(DoAfter(.2f, () =>
+            void DestroyBlock()
             {
                 Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
                 _blocks[gridPos.x, gridPos.y] = null;
-            }));
+            }
+
+            if(isAnimated)
+            {
+                LeanTween.scale(_blocks[gridPos.x, gridPos.y].gameObject, Vector3.one / 6f, _BlockCreationDuration).setOnComplete(DestroyBlock);
+            }
+            else DestroyBlock();
         }
         
         [Button]
-        private void FindEmptySpaces()
+        private void DropAllBlocks(bool isAnimated)
         {
-            var count = 0; // To make sure if re-evaluation is necessary
-            
             for (var x = 0; x < _GridSize.x; x++) 
             {
                 for (var y = 0; y < _GridSize.y; y++)
                 {
                     if (_blocks[x, y] != null) continue;
-                    DropToEmptySpace(x, y);
-                    count++;
+                    DropToEmptySpace(x, y, isAnimated);
                     break;
                 }
             }
-            // Refill the new empty spaces
-            StartCoroutine(DoAfter(.8f, RefillTheBoard));
-            
-            // Re-evaluate board
-            if (count > 0)
-            {
-                StartCoroutine(DoAfter(1.5f, EvaluateBoard));
-            }
-            else
-            {
-                IsInputAllowed = true;
-            }
         }
-        
-        private void DropToEmptySpace(int posX, int posY)
+        private void DropToEmptySpace(int posX, int posY, bool isAnimated)
         {
             var nullCount = 1;
             
@@ -133,14 +129,22 @@ namespace MarketBalance
                     var newYPos = y - nullCount;
                     _blocks[posX, newYPos] = block;
                     _blocks[posX, y] = null;
-                    _blocks[posX, newYPos].GridPos = new Vector2Int(posX, newYPos);
+                    
+                    block.GridPos = new Vector2Int(posX, newYPos);
 
-                    LeanTween.move(_blocks[posX, newYPos].gameObject, GetWorldPosForGridPos(posX, newYPos), 0.4f);
+                    var blockWorldPos = GetWorldPosForGridPos(posX, newYPos);
+                    if (isAnimated)
+                    {
+                        LeanTween.move(block.gameObject, blockWorldPos, _BlockDropDuration);
+                    }
+                    else
+                        block.transform.position = blockWorldPos;
+
                 }
             }
-        } 
-        
-        private void RefillTheBoard()
+        }
+
+        private void RefillTheBoard(bool isAnimated)
         {
             for (var x = 0; x < _GridSize.x; x++)
             {
@@ -150,7 +154,7 @@ namespace MarketBalance
                     
                     if (!tile)
                     {
-                        CreateRandomBlockAtPos(x, y);
+                        CreateRandomBlockAtPos(x, y, isAnimated);
                     }
                 }
             }
@@ -164,11 +168,43 @@ namespace MarketBalance
                 var matchingBlocks = GetMatchingBlocks();
                 
                 if(matchingBlocks.Count <= 0) break;
+
+                foreach (var matchingBlock in matchingBlocks)
+                {
+                    RemoveItem(matchingBlock.GridPos, false);
+                }
+                
+                // DropAllBlocks(false);
+                RefillTheBoard(false);
             }
         }
-        
+
         [Button]
-        private void EvaluateBoard()    // Find all 3 or more matches and destroy them
+        private void EvaluateBoardTillEnd()
+        {
+            StartCoroutine(EvaluateBoardTillEndRoutine());
+        }
+        
+        private IEnumerator EvaluateBoardTillEndRoutine()
+        {
+            while (true)
+            {
+                var foundMatches = EvaluateBoardOnce();
+                if (!foundMatches) break;
+                yield return new WaitForSeconds(.6f);
+            
+                DropAllBlocks(true);
+                yield return new WaitForSeconds(_BlockDropDuration);
+                
+                RefillTheBoard(true);
+                yield return new WaitForSeconds(_BlockCreationDuration);
+            }
+
+            IsInputAllowed = true;
+        }
+
+        // Returns true if finds any match
+        private bool EvaluateBoardOnce()    // Find all 3 or more matches and destroy them
         {
             IsInputAllowed = false;
             
@@ -178,9 +214,8 @@ namespace MarketBalance
             {
                 OnAutoServiceStop?.Invoke();
                 IsInputAllowed = true;
-                return;
+                return false;
             }
-            
             StartCoroutine(DoAfter(.2f, () =>
             {
                 // Emit events for removed block types
@@ -193,12 +228,11 @@ namespace MarketBalance
                 // Remove blocks
                 foreach (var block in sameBlocks)
                 {
-                    RemoveItem(block.GridPos);
+                    RemoveItem(block.GridPos, true);
                 }
             }));
             
-            // Find and fill new empty spaces 
-            StartCoroutine(DoAfter(.6f, FindEmptySpaces));
+            return true;
         }
 
         private List<Block> GetMatchingBlocks()
@@ -376,7 +410,7 @@ namespace MarketBalance
             // Move the chosen blocks
             MoveSwipedBlocks();
 
-            StartCoroutine(DoAfter(0.1f, EvaluateBoard));
+            StartCoroutine(DoAfter(0.1f, EvaluateBoardTillEnd));
             
             // Time to check if they have match
             StartCoroutine(DoAfter(1f, () =>

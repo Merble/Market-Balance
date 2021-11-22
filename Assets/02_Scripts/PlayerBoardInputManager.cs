@@ -5,7 +5,7 @@ namespace MarketBalance
 {
     public class PlayerBoardInputManager : MonoBehaviour
     {
-        [FormerlySerializedAs("_InputHandler")] [SerializeField] private InputManager _InputManager;
+        [SerializeField] private InputManager _InputManager;
         [SerializeField] private BoardManager _BoardManager;
         
         private Vector3 _mouseStartPos;
