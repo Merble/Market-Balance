@@ -5,7 +5,7 @@ namespace MarketBalance
 {
     public class Block : MonoBehaviour
     {
-        [FormerlySerializedAs("_Type")] [SerializeField] private OrderType _OrderType;
+        [SerializeField] private OrderType _OrderType;
 
         public OrderType OrderType => _OrderType;
 

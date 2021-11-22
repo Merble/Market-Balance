@@ -12,23 +12,26 @@ namespace MarketBalance
     {
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
         private Block[,] _blocks;
+        public Block[,] Blocks => _blocks;
 
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
         
         public delegate void OrderEvent(OrderType order);
         public event OrderEvent OnOrderService;
+        public event Action OnAutoServiceStop;
 
-        [SerializeField] private Vector2Int _GridSize;
         [SerializeField] private Vector2 _TileSize;
         [SerializeField] private int _MatchCount = 3;
+        [SerializeField] private Vector2Int _GridSize;
+        public int MatchCount => _MatchCount;
+        public Vector2Int GridSize => _GridSize;
         
-        private bool _isInputAllowed;
-        public bool İsInputAllowed => _isInputAllowed;
-        
+        public bool IsInputAllowed { get; private set; }
+
         private void Awake()
         {
-            _isInputAllowed = true;
+            IsInputAllowed = true;
             CreateBoard();
         }
         
@@ -60,7 +63,7 @@ namespace MarketBalance
         {
             var startPosition = transform.position;
 
-            return startPosition + new Vector3(_TileSize.x * x, startPosition.y, _TileSize.y * y);
+            return startPosition + new Vector3(_TileSize.x * x, 0, _TileSize.y * y);
         }
 
         private Block CreateRandomBlock()
@@ -109,7 +112,7 @@ namespace MarketBalance
             }
             else
             {
-                _isInputAllowed = true;
+                IsInputAllowed = true;
             }
         }
         
@@ -154,22 +157,27 @@ namespace MarketBalance
         }
 
         [Button]
-        private void EvaluateBoard()       // Find all 3 or more matches and destroy them
+        private void ClearAllMatches()
         {
-            _isInputAllowed = false;
-            
-            var sameBlocks = RightFirst();
-            var newBlocks = UpFirst();
-            
-            foreach (var block in newBlocks)
+            while (true)
             {
-                if (!sameBlocks.Contains(block))
-                    sameBlocks.Add(block);
+                var matchingBlocks = GetMatchingBlocks();
+                
+                if(matchingBlocks.Count <= 0) break;
             }
+        }
+        
+        [Button]
+        private void EvaluateBoard()    // Find all 3 or more matches and destroy them
+        {
+            IsInputAllowed = false;
+            
+            var sameBlocks = GetMatchingBlocks();
 
-            if (!sameBlocks.Any())  // Control if no removal needed
+            if (!sameBlocks.Any())    // Control if no removal needed
             {
-                _isInputAllowed = true;
+                OnAutoServiceStop?.Invoke();
+                IsInputAllowed = true;
                 return;
             }
             
@@ -192,7 +200,21 @@ namespace MarketBalance
             // Find and fill new empty spaces 
             StartCoroutine(DoAfter(.6f, FindEmptySpaces));
         }
-        
+
+        private List<Block> GetMatchingBlocks()
+        {
+            var sameBlocks = RightFirst();
+            var newBlocks = UpFirst();
+
+            foreach (var block in newBlocks)
+            {
+                if (!sameBlocks.Contains(block))
+                    sameBlocks.Add(block);
+            }
+
+            return sameBlocks;
+        }
+
         private List<Block> RightFirst()
         {
             var sameBlocks = new List<Block>();
@@ -365,6 +387,7 @@ namespace MarketBalance
                 }
             }));
         }
+        
         private void MoveSwipedBlocks()
         {
             // First make sure to store GridPos change infos

@@ -1,18 +1,19 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace MarketBalance
 {
-    public class BoardInputManager : MonoBehaviour
+    public class PlayerBoardInputManager : MonoBehaviour
     {
-        [SerializeField] private InputHandler _InputHandler;
+        [FormerlySerializedAs("_InputHandler")] [SerializeField] private InputManager _InputManager;
         [SerializeField] private BoardManager _BoardManager;
         
         private Vector3 _mouseStartPos;
 
         private void Awake()
         { 
-            _InputHandler.OnDragStart += MouseClickStart;
-            _InputHandler.OnDragEnd += MouseClickEnd;
+            _InputManager.OnDragStart += MouseClickStart;
+            _InputManager.OnDragEnd += MouseClickEnd;
         }
         
         private void MouseClickStart(Vector3 mousePos)
@@ -34,7 +35,7 @@ namespace MarketBalance
             var gridPos = hit.collider.GetComponent<Block>().GridPos;
             
             // Check if mouse input allowed
-            if (_BoardManager.İsInputAllowed) 
+            if (_BoardManager.IsInputAllowed) 
                 _BoardManager.SwapBlocks(gridPos, dir);
         }
 

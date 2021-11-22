@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace MarketBalance
 {
-    public class InputHandler : MonoBehaviour
+    public class InputManager : MonoBehaviour
     {
         public delegate void DragEvent(Vector3 deltaInput);
 

@@ -68,12 +68,15 @@ namespace MarketBalance
         }
         
         [Button]
-        private void AddCustomers()
+        public void AddCustomers()
         {
             for (var y = _customers.Count; y < _CustomerList; y++)
             {
                 if (_CustomersToAdd <= 0)
+                {
+                    // TODO: Let the game know that this controller did it. End of the level for enemy or player :)
                     break;
+                }
                 
                 _CustomersToAdd--;
                 CreateRandomCustomerAtPos(y);
@@ -90,7 +93,6 @@ namespace MarketBalance
             }
         }
         
-        [Button]
         public void RemoveFirstCustomer()
         {
             Destroy(_customers[0].gameObject);

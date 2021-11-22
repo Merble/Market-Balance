@@ -1,26 +1,14 @@
-using Sirenix.OdinInspector;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace MarketBalance
 {
     public class GameManager : MonoBehaviour
     {
-        [SerializeField] private CustomerManager _CustomerManager;
-        [SerializeField] private BoardManager _BoardManager;
-
-        private OrderType? CurrentOrder => _CustomerManager.FirstOrder;
+        [SerializeField] private Player _Player;
+        [SerializeField] private EnemyAI _Enemy;
         
-        private void Awake()
-        {
-            _BoardManager.OnOrderService += OnOrderServiceMatch;
-        }
         
-        private void OnOrderServiceMatch(OrderType service)
-        {
-            if (CurrentOrder == service)
-            {
-                _CustomerManager.RemoveFirstCustomer();
-            }
-        }
     }
 }
