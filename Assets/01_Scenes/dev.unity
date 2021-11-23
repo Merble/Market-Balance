@@ -201,7 +201,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _BoardManager: {fileID: 1913976441}
   _CustomerManager: {fileID: 1915129079}
-  _SwapInterval: 0
+  _SwapInterval: 4
 --- !u!4 &610503054
 Transform:
   m_ObjectHideFlags: 0
@@ -592,8 +592,8 @@ MonoBehaviour:
   - {fileID: -8170245590420056757, guid: 250152012752d46409ed029661ba97c0, type: 3}
   - {fileID: -8170245590420056757, guid: 6066440cee785354899c036175844ddc, type: 3}
   _TileSize: {x: 1, y: 1}
-  _MatchCount: 3
   _GridSize: {x: 6, y: 6}
+  _MatchCount: 3
   _BlockDropDuration: 0.4
   _BlockCreationDuration: 0.2
 --- !u!4 &1615679675
@@ -752,8 +752,8 @@ MonoBehaviour:
   - {fileID: -8170245590420056757, guid: 6066440cee785354899c036175844ddc, type: 3}
   - {fileID: -8170245590420056757, guid: 0b24e28f62fe5744597ced9e44f96269, type: 3}
   _TileSize: {x: 1, y: 1}
-  _MatchCount: 3
   _GridSize: {x: 6, y: 6}
+  _MatchCount: 3
   _BlockDropDuration: 0.4
   _BlockCreationDuration: 0.2
 --- !u!4 &1913976442

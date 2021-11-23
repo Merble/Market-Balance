@@ -16,8 +16,8 @@ namespace MarketBalance
         
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
         [SerializeField] private Vector2 _TileSize;
-        [SerializeField] private int _MatchCount = 3;
         [SerializeField] private Vector2Int _GridSize;
+        [SerializeField] private int _MatchCount = 3;
         [Space]
         [SerializeField] private float _BlockDropDuration = .4f;
 
@@ -38,10 +38,15 @@ namespace MarketBalance
 
         private void Awake()
         {
-            IsInputAllowed = true;
             CreateBoard();
         }
-        
+
+        private void Start()
+        {
+            ClearAllMatches();
+            IsInputAllowed = true;
+        }
+
         private void CreateBoard ()
         {
             _blocks = new Block[_GridSize.x, _GridSize.y];
@@ -99,7 +104,6 @@ namespace MarketBalance
             else DestroyBlock();
         }
         
-        [Button]
         private void DropAllBlocks(bool isAnimated)
         {
             for (var x = 0; x < _GridSize.x; x++) 
@@ -160,7 +164,6 @@ namespace MarketBalance
             }
         }
 
-        [Button]
         private void ClearAllMatches()
         {
             while (true)
@@ -179,7 +182,6 @@ namespace MarketBalance
             }
         }
 
-        [Button]
         private void EvaluateBoardTillEnd()
         {
             StartCoroutine(EvaluateBoardTillEndRoutine());

@@ -67,7 +67,6 @@ namespace MarketBalance
             return newObject;
         }
         
-        [Button]
         public void AddCustomers()
         {
             for (var y = _customers.Count; y < _CustomerList; y++)
