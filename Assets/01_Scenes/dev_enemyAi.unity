@@ -154,7 +154,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _BoardManager: {fileID: 1913976441}
   _CustomerManager: {fileID: 1915129079}
-  _SwapInterval: 4
+  _SwapInterval: 5
 --- !u!4 &610503054
 Transform:
   m_ObjectHideFlags: 0
@@ -549,6 +549,8 @@ MonoBehaviour:
   _MatchCount: 3
   _BlockDropDuration: 0.4
   _BlockCreationDuration: 0.2
+  _BlockMinScale: 0.16
+  _BlockMaxScale: 0.9
 --- !u!4 &1913976442
 Transform:
   m_ObjectHideFlags: 0
@@ -595,7 +597,7 @@ MonoBehaviour:
   _CustomerPrefabs:
   - {fileID: 3810996132965768055, guid: 0ecb3f6eb64bdb24c9b102ffddc20078, type: 3}
   _CustomerList: 6
-  _CustomersToAdd: 10
+  _CustomersToAdd: 2
 --- !u!4 &1915129080
 Transform:
   m_ObjectHideFlags: 0
@@ -621,6 +623,7 @@ GameObject:
   - component: {fileID: 2135113915}
   - component: {fileID: 2135113914}
   - component: {fileID: 2135113913}
+  - component: {fileID: 2135113916}
   - component: {fileID: 2135113912}
   m_Layer: 0
   m_Name: Ground
@@ -705,3 +708,15 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2135113916
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2135113911}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c84dc1050e21574ea2a940346c2116f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

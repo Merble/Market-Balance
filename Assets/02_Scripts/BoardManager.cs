@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Sirenix.OdinInspector;
 using UnityEngine;
+using UnityEngine.Assertions;
 using Random = UnityEngine.Random;
 
 namespace MarketBalance
@@ -11,8 +11,8 @@ namespace MarketBalance
     public class BoardManager : MonoBehaviour
     {
         public delegate void OrderEvent(OrderType order);
-        public event OrderEvent OnOrderService;
-        public event Action OnAutoServiceStop;
+        public event OrderEvent OrderDidService;
+        public event Action AutoServiceDidStop;
         
         [SerializeField] private Block[] _BlockPrefabs = new Block[4];
         [SerializeField] private Vector2 _TileSize;
@@ -20,34 +20,29 @@ namespace MarketBalance
         [SerializeField] private int _MatchCount = 3;
         [Space]
         [SerializeField] private float _BlockDropDuration = .4f;
-
+        [SerializeField] private float _BlockSwipeDuration = .2f;
         [SerializeField] private float _BlockCreationDuration = .2f;
+        [SerializeField] private float _BlockMinScale = .16f;
+        [SerializeField] private float _BlockMaxScale = .9f;
         
         private Block[,] _blocks;
 
         private Block _firstBlockOfSwipe;
         private Block _lastBlockOfSwipe;
-        
-        public int MatchCount => _MatchCount;
-        
-        public Vector2Int GridSize => _GridSize;
-        
+
         public bool IsInputAllowed { get; private set; }
-        
-        public Block[,] Blocks => _blocks;
 
         private void Awake()
         {
-            CreateBoard();
+            CreateBoard(false);
         }
 
         private void Start()
         {
             ClearAllMatches();
-            IsInputAllowed = true;
         }
 
-        private void CreateBoard ()
+        private void CreateBoard (bool isAnimated)
         {
             _blocks = new Block[_GridSize.x, _GridSize.y];
             
@@ -55,7 +50,7 @@ namespace MarketBalance
             {
                 for (var y = 0; y < _GridSize.y; y++)
                 {
-                    CreateRandomBlockAtPos(x, y, false);
+                    CreateRandomBlockAtPos(x, y, isAnimated);
                 }
             }
         }
@@ -65,41 +60,36 @@ namespace MarketBalance
             _blocks[x, y] = newBlock;
             
             newBlock.GridPos = new Vector2Int(x, y);
-            newBlock.transform.position = GetWorldPosForGridPos(x, y);
-            
-            if(isAnimated)
-            {
-                newBlock.transform.localScale = Vector3.one / 6f;
-                LeanTween.scale(newBlock.gameObject, Vector3.one * .9f, _BlockCreationDuration);
-            }
+            newBlock.transform.localPosition = GetLocalPosForGridPos(x, y);
+
+            if (!isAnimated) return;
+            newBlock.transform.localScale = Vector3.one * _BlockMinScale;
+            LeanTween.scale(newBlock.gameObject, Vector3.one * _BlockMaxScale, _BlockCreationDuration);
         }
 
-        private Vector3 GetWorldPosForGridPos(int x, int y)
+        private Vector3 GetLocalPosForGridPos(int x, int y)
         {
-            var startPosition = transform.position;
-
-            return startPosition + new Vector3(_TileSize.x * x, 0, _TileSize.y * y);
+            return new Vector3(_TileSize.x * x, 0, _TileSize.y * y);
         }
 
         private Block GetRandomBlock()
         {
             var randomBlockPrefab = _BlockPrefabs[Random.Range(0, _BlockPrefabs.Length)];
-            var newObject = Instantiate(randomBlockPrefab, transform, true);
-            
+            var newObject = Instantiate(randomBlockPrefab, transform, false);
             return newObject;
         }
         
-        private void RemoveItem(Vector2Int gridPos, bool isAnimated)
+        private void RemoveBlock(Vector2Int gridPos, bool isAnimated)
         {
             void DestroyBlock()
             {
                 Destroy(_blocks[gridPos.x, gridPos.y].gameObject);
                 _blocks[gridPos.x, gridPos.y] = null;
             }
-
+            
             if(isAnimated)
             {
-                LeanTween.scale(_blocks[gridPos.x, gridPos.y].gameObject, Vector3.one / 6f, _BlockCreationDuration).setOnComplete(DestroyBlock);
+                LeanTween.scale(_blocks[gridPos.x, gridPos.y].gameObject, Vector3.one *_BlockMinScale, _BlockCreationDuration).setOnComplete(DestroyBlock);
             }
             else DestroyBlock();
         }
@@ -111,6 +101,7 @@ namespace MarketBalance
                 for (var y = 0; y < _GridSize.y; y++)
                 {
                     if (_blocks[x, y] != null) continue;
+                    
                     DropToEmptySpace(x, y, isAnimated);
                     break;
                 }
@@ -136,13 +127,13 @@ namespace MarketBalance
                     
                     block.GridPos = new Vector2Int(posX, newYPos);
 
-                    var blockWorldPos = GetWorldPosForGridPos(posX, newYPos);
+                    var blockLocalPos = GetLocalPosForGridPos(posX, newYPos);
                     if (isAnimated)
                     {
-                        LeanTween.move(block.gameObject, blockWorldPos, _BlockDropDuration);
+                        LeanTween.moveLocal(block.gameObject, blockLocalPos, _BlockDropDuration);
                     }
                     else
-                        block.transform.position = blockWorldPos;
+                        block.transform.localPosition = blockLocalPos;
 
                 }
             }
@@ -174,12 +165,13 @@ namespace MarketBalance
 
                 foreach (var matchingBlock in matchingBlocks)
                 {
-                    RemoveItem(matchingBlock.GridPos, false);
+                    RemoveBlock(matchingBlock.GridPos, false);
                 }
                 
-                // DropAllBlocks(false);
                 RefillTheBoard(false);
             }
+            
+            IsInputAllowed = true;
         }
 
         private void EvaluateBoardTillEnd()
@@ -202,20 +194,38 @@ namespace MarketBalance
                 yield return new WaitForSeconds(_BlockCreationDuration);
             }
 
-            IsInputAllowed = true;
+            var blocksToSwap = FindTheBlocksToSwap();
+            if (!blocksToSwap.Any())  // If there is no valid moves
+            {
+                Debug.Log("No more valid move");
+                StartCoroutine(DoAfter(3f, ShuffleTheBlocks));
+            }
+        }
+
+        private void ShuffleTheBlocks()
+        {
+            IsInputAllowed = false;
+            foreach (var block in _blocks)
+            {
+                RemoveBlock(block.GridPos, true);
+            }
+
+            StartCoroutine(DoAfter(1f, () => { CreateBoard(true); }));
+            StartCoroutine(DoAfter(2f, () =>
+            {
+                ClearAllMatches();
+                IsInputAllowed = true;
+            }));
         }
 
         // Returns true if finds any match
         private bool EvaluateBoardOnce()    // Find all 3 or more matches and destroy them
         {
-            IsInputAllowed = false;
-            
             var sameBlocks = GetMatchingBlocks();
 
-            if (!sameBlocks.Any())    // Control if no removal needed
+            if (!sameBlocks.Any())    // Control if removal needed
             {
-                OnAutoServiceStop?.Invoke();
-                IsInputAllowed = true;
+                AutoServiceDidStop?.Invoke();
                 return false;
             }
             StartCoroutine(DoAfter(.2f, () =>
@@ -224,13 +234,13 @@ namespace MarketBalance
                 var uniqueBlockTypes = sameBlocks.Select(block => block.OrderType).Distinct();
                 foreach (var uniqueBlockType in uniqueBlockTypes)
                 {
-                    OnOrderService?.Invoke(uniqueBlockType);
+                    OrderDidService?.Invoke(uniqueBlockType);
                 }
 
                 // Remove blocks
                 foreach (var block in sameBlocks)
                 {
-                    RemoveItem(block.GridPos, true);
+                    RemoveBlock(block.GridPos, true);
                 }
             }));
             
@@ -400,6 +410,8 @@ namespace MarketBalance
         
         public void SwapBlocks(Vector2Int firstGridPos, Vector2Int swipeDir)
         {
+            IsInputAllowed = false;
+            
             _firstBlockOfSwipe = _blocks[firstGridPos.x, firstGridPos.y];
 
             var lastGridPos = _firstBlockOfSwipe.GridPos + swipeDir;
@@ -422,6 +434,8 @@ namespace MarketBalance
                     MoveSwipedBlocks();
                 }
             }));
+
+            StartCoroutine(DoAfter(1.3f, () => { IsInputAllowed = true; }));
         }
         
         private void MoveSwipedBlocks()
@@ -433,8 +447,10 @@ namespace MarketBalance
             _lastBlockOfSwipe.GridPos = new Vector2Int(firstGridPos.x, firstGridPos.y);
             
             // Then change the world positions
-            _firstBlockOfSwipe.transform.position = GetWorldPosForGridPos(lastGridPos.x, lastGridPos.y);
-            _lastBlockOfSwipe.transform.position = GetWorldPosForGridPos(firstGridPos.x, firstGridPos.y);
+            var firstBlockPos = GetLocalPosForGridPos(lastGridPos.x, lastGridPos.y);
+            LeanTween.moveLocal(_firstBlockOfSwipe.gameObject, firstBlockPos, _BlockSwipeDuration);
+            var lastBlockPos = GetLocalPosForGridPos(firstGridPos.x, firstGridPos.y);
+            LeanTween.moveLocal(_lastBlockOfSwipe.gameObject, lastBlockPos, _BlockSwipeDuration);
             
             // Last but not least: actually changing board array
             _blocks[firstGridPos.x, firstGridPos.y] = _lastBlockOfSwipe;
@@ -446,6 +462,174 @@ namespace MarketBalance
             yield return new WaitForSeconds(waitTime);
             
             callback?.Invoke();
+        }
+        
+        public struct BlockToSwapResult
+        {
+            public Vector2Int Position;
+            public Vector2Int Direction;
+            public OrderType? Type;
+            public bool IsNull;
+        }
+        public List<BlockToSwapResult> FindTheBlocksToSwap()     // An algorithm that will find a valid swipe option on the board.
+        {
+            var resultList = new List<BlockToSwapResult>();
+            
+            // RightFirst
+            for (var y = 0; y < _GridSize.y; y++)
+            {
+                for (var x = 0; x < _GridSize.x; x++)
+                {
+                    if (x > _GridSize.x - _MatchCount)
+                        continue;
+                    
+                    // Gather all matchSize number of blocks
+                    var checkingBlocks = new List<Block>();
+                    for (var i = 0; i < _MatchCount; i++)
+                    {
+                        checkingBlocks.Add(_blocks[x + i, y]);
+                    }
+
+                    var otherBlockIndex = GetSingleDifferentBlockIndex(checkingBlocks);
+                    if (otherBlockIndex < 0) continue;
+
+                    var otherBlock = checkingBlocks[otherBlockIndex];
+                    checkingBlocks.RemoveAt(otherBlockIndex);
+
+                    var blocksToSwap = GetBlocksToSwap(otherBlock, checkingBlocks);
+                    if(!blocksToSwap.IsNull) 
+                        resultList.Add(blocksToSwap);
+                }
+            }
+            
+            // UpFirst
+            for (var x = 0; x < _GridSize.x; x++)
+            {
+                for (var y = 0; y < _GridSize.y; y++)
+                {
+                    if (y > _GridSize.y - _MatchCount)
+                        continue;
+                    
+                    // Gather all matchSize number of blocks
+                    var checkingBlocks = new List<Block>();
+                    for (var i = 0; i < _MatchCount; i++)
+                    {
+                        checkingBlocks.Add(_blocks[x, y + i]);
+                    }
+
+                    var otherBlockIndex = GetSingleDifferentBlockIndex(checkingBlocks);
+                    if (otherBlockIndex < 0) continue;
+
+                    var otherBlock = checkingBlocks[otherBlockIndex];
+                    checkingBlocks.RemoveAt(otherBlockIndex);
+
+                    var blocksToSwap = GetBlocksToSwap(otherBlock, checkingBlocks);
+                    if(!blocksToSwap.IsNull) 
+                        resultList.Add(blocksToSwap);
+                }
+            }
+            
+            return resultList;
+        }
+
+        private int GetSingleDifferentBlockIndex(List<Block> blocksToCheck)
+        {
+            Assert.IsTrue(blocksToCheck.Count >= 3);
+
+            OrderType? mainType;
+
+            // Evaluate 3 cases to find main type
+            if (blocksToCheck[0].OrderType == blocksToCheck[1].OrderType)
+            {
+                mainType = blocksToCheck[0].OrderType;
+            }
+            else if (blocksToCheck[1].OrderType == blocksToCheck[2].OrderType)
+            { 
+                mainType = blocksToCheck[1].OrderType;
+            }
+            else if (blocksToCheck[0].OrderType == blocksToCheck[2].OrderType)
+            {
+                mainType = blocksToCheck[0].OrderType;
+            }
+            else return -1;
+            
+            var unMatchCount = 0;
+            var unMatchBlockIndex = 0;
+            for (var index = 0; index < blocksToCheck.Count; index++)
+            {
+                var block = blocksToCheck[index];
+                if (block.OrderType != mainType)
+                {
+                    unMatchBlockIndex = index;
+                    unMatchCount++;
+                }
+
+                if (unMatchCount > 1) return -1;
+            }
+
+            return unMatchBlockIndex;
+        }
+
+        private BlockToSwapResult GetBlocksToSwap(Block otherBlock, List<Block> sameBlocks)
+        {
+            BlockToSwapResult blocksToSwap;
+            var sameType = sameBlocks[0].OrderType;
+            var blockPos = otherBlock.GridPos;
+
+            var left = GetBlockAtPos(blockPos + Vector2Int.left);
+            if (left)
+                if (!sameBlocks.Contains(left) && left.OrderType == sameType)
+                {
+                    blocksToSwap.Position = otherBlock.GridPos;
+                    blocksToSwap.Direction = Vector2Int.left;
+                    blocksToSwap.Type = sameType;
+                    blocksToSwap.IsNull = false;
+                    
+                    return blocksToSwap;
+                }
+
+            var right = GetBlockAtPos(blockPos + Vector2Int.right);
+            if (right)
+                if (!sameBlocks.Contains(right) && right.OrderType == sameType)
+                {
+                    blocksToSwap.Position = otherBlock.GridPos;
+                    blocksToSwap.Direction = Vector2Int.right;
+                    blocksToSwap.Type = sameType;
+                    blocksToSwap.IsNull = false;
+
+                    return blocksToSwap;
+                }
+
+            var up = GetBlockAtPos(blockPos + Vector2Int.up);
+            if (up)
+                if (!sameBlocks.Contains(up) && up.OrderType == sameType)
+                {
+                    blocksToSwap.Position = otherBlock.GridPos;
+                    blocksToSwap.Direction = Vector2Int.up;
+                    blocksToSwap.Type = sameType;
+                    blocksToSwap.IsNull = false;
+
+                    return blocksToSwap;
+                }
+
+            var down = GetBlockAtPos(blockPos + Vector2Int.down);
+            if (down)
+                if (!sameBlocks.Contains(down) && down.OrderType == sameType)
+                {
+                    blocksToSwap.Position = otherBlock.GridPos;
+                    blocksToSwap.Direction = Vector2Int.down;
+                    blocksToSwap.Type = sameType;
+                    blocksToSwap.IsNull = false;
+
+                    return blocksToSwap;
+                }
+            
+            blocksToSwap.Position = Vector2Int.zero;
+            blocksToSwap.Direction = Vector2Int.zero;
+            blocksToSwap.Type = null;
+            blocksToSwap.IsNull = true;
+
+            return blocksToSwap;
         }
     }
 }

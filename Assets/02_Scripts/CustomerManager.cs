@@ -2,24 +2,26 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Sirenix.OdinInspector;
 using UnityEngine;
-using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
 namespace MarketBalance
 {
     public class CustomerManager : MonoBehaviour
     {
+        public event Action CustomerDidEnd;
+        
         private const float MoveDuration = 0.4f;
-        
-        public event BoardManager.OrderEvent OnOrderChange;
-        
+
         [SerializeField] private Customer[] _CustomerPrefabs = new Customer[1];
         [SerializeField] private int _CustomerList;
         [SerializeField] private int _CustomersToAdd;
         
         private readonly List<Customer> _customers = new List<Customer>();
+        [Space]
+        [SerializeField] private float _CustomerMinScale = .15f;
+        [SerializeField] private float _CustomerMaxScale = .8f;
+        [SerializeField] private float _CustomerCreationDuration = .2f;
         
         private List<OrderType> OrderList => _customers.Select(customer => customer.Order).ToList();
         
@@ -31,7 +33,7 @@ namespace MarketBalance
                 return OrderList[0];
             }
         }
-
+        
         private void Awake()
         {
             CreateCustomerLine();
@@ -47,22 +49,23 @@ namespace MarketBalance
         private void CreateRandomCustomerAtPos(int y)
         {
             var newCustomer = CreateRandomCustomer();
-            _customers.Add(newCustomer);
-
-            newCustomer.transform.position = GetWorldPosition(y);
+            _customers.Add(newCustomer); 
+            
+            newCustomer.transform.localPosition = GetLocalPosition(y);
+            
+            newCustomer.transform.localScale = Vector3.one * _CustomerMinScale;
+            LeanTween.scale(newCustomer.gameObject, Vector3.one * _CustomerMaxScale, MoveDuration);
         }
         
-        private Vector3 GetWorldPosition(int index)
+        private Vector3 GetLocalPosition(int index)
         {
-            var startPosition = transform.position;
-
-            return startPosition + new Vector3(0, 0,  -index);
+            return  new Vector3(0, 0,  -index);
         }
         
         private Customer CreateRandomCustomer()
         {
             var randomCustomer = _CustomerPrefabs[Random.Range(0, _CustomerPrefabs.Length)];
-            var newObject = Instantiate(randomCustomer, transform, true);
+            var newObject = Instantiate(randomCustomer, transform, false);
 
             return newObject;
         }
@@ -73,51 +76,41 @@ namespace MarketBalance
             {
                 if (_CustomersToAdd <= 0)
                 {
-                    // TODO: Let the game know that this controller did it. End of the level for enemy or player :)
                     break;
                 }
-                
                 _CustomersToAdd--;
                 CreateRandomCustomerAtPos(y);
             }
-            OnOrderChange?.Invoke(_customers[0].Order);
         }
         private void UpdateCustomerPositions()
         {
             for (var index = 0; index < _customers.Count; index++)
             {
                 var customer = _customers[index];
-                var pos = GetWorldPosition(index);
-                LeanTween.move(customer.gameObject, pos, MoveDuration);
+                var localPos = GetLocalPosition(index);
+                
+                LeanTween.moveLocal(customer.gameObject, localPos, MoveDuration);
             }
         }
         
         public void RemoveFirstCustomer()
         {
-            Destroy(_customers[0].gameObject);
-            _customers.RemoveAt(0);
+            LeanTween.scale(_customers[0].gameObject, Vector3.one *_CustomerMinScale, _CustomerCreationDuration).setOnComplete(DestroyCustomer);
+            void DestroyCustomer()
+            {
+                Destroy(_customers[0].gameObject);
+                _customers.RemoveAt(0);
+            }
             
             if (!_customers.Any())
             {
-                // TODO: Emit event to notify end of customers
-                Debug.Log("Customers ended.");
+                CustomerDidEnd?.Invoke();
                 return;
             }
-            
-            OnOrderChange?.Invoke(_customers[0].Order);
             
             StartCoroutine(DoAfter(.5f, UpdateCustomerPositions));
         }
 
-        [Button]
-        private void LogOrderList()
-        {
-            foreach (var order in OrderList)
-            {
-                Debug.Log(order);
-            }
-        }
-        
         private IEnumerator DoAfter(float waitTime, Action callback)
         {
             yield return new WaitForSeconds(waitTime);
