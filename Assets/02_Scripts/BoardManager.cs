@@ -24,13 +24,27 @@ namespace MarketBalance
         [SerializeField] private float _BlockCreationDuration = .2f;
         [SerializeField] private float _BlockMinScale = .16f;
         [SerializeField] private float _BlockMaxScale = .9f;
+        [Space]
+        [SerializeField] private bool _isLog;
+        
         
         private Block[,] _blocks;
 
-        private Block _firstBlockOfSwipe;
-        private Block _lastBlockOfSwipe;
+        // private Block _firstBlockOfSwipe;
+        // private Block _lastBlockOfSwipe;
 
-        public bool IsInputAllowed { get; private set; }
+        private bool _isInputAllowed;
+        public bool IsInputAllowed
+        {
+            get=> _isInputAllowed;
+            private set
+            {
+                if(_isLog)
+                    Debug.Log($"Input allowed: {value}");
+                
+                _isInputAllowed = value;
+            }
+        }
 
         private void Awake()
         {
@@ -40,6 +54,7 @@ namespace MarketBalance
         private void Start()
         {
             ClearAllMatches();
+            IsInputAllowed = true;
         }
 
         private void CreateBoard (bool isAnimated)
@@ -170,8 +185,6 @@ namespace MarketBalance
                 
                 RefillTheBoard(false);
             }
-            
-            IsInputAllowed = true;
         }
 
         private void EvaluateBoardTillEnd()
@@ -181,6 +194,7 @@ namespace MarketBalance
         
         private IEnumerator EvaluateBoardTillEndRoutine()
         {
+            IsInputAllowed = false;
             while (true)
             {
                 var foundMatches = EvaluateBoardOnce();
@@ -198,24 +212,27 @@ namespace MarketBalance
             if (!blocksToSwap.Any())  // If there is no valid moves
             {
                 Debug.Log("No more valid move");
-                StartCoroutine(DoAfter(3f, ShuffleTheBlocks));
+                StartCoroutine(DoAfter(3f, () =>
+                {
+                    ShuffleTheBlocks();
+                    IsInputAllowed = true;
+                }));
+            }
+            else
+            {
+                IsInputAllowed = true;
             }
         }
 
         private void ShuffleTheBlocks()
         {
-            IsInputAllowed = false;
             foreach (var block in _blocks)
             {
                 RemoveBlock(block.GridPos, true);
             }
 
             StartCoroutine(DoAfter(1f, () => { CreateBoard(true); }));
-            StartCoroutine(DoAfter(2f, () =>
-            {
-                ClearAllMatches();
-                IsInputAllowed = true;
-            }));
+            StartCoroutine(DoAfter(2f, ClearAllMatches));
         }
 
         // Returns true if finds any match
@@ -407,54 +424,63 @@ namespace MarketBalance
 
             return _blocks[pos.x, pos.y];
         }
-        
+
         public void SwapBlocks(Vector2Int firstGridPos, Vector2Int swipeDir)
         {
+            StartCoroutine(SwapBlocksRoutine(firstGridPos, swipeDir));
+        }
+        public IEnumerator SwapBlocksRoutine(Vector2Int firstGridPos, Vector2Int swipeDir)
+        {
             IsInputAllowed = false;
-            
-            _firstBlockOfSwipe = _blocks[firstGridPos.x, firstGridPos.y];
 
-            var lastGridPos = _firstBlockOfSwipe.GridPos + swipeDir;
-            
-            if (( (lastGridPos.x < 0) || (lastGridPos.x >= _GridSize.x) || (lastGridPos.y < 0) ||
-                  (lastGridPos.y >= _GridSize.y) ))    return;
-            
-            _lastBlockOfSwipe = _blocks[lastGridPos.x, lastGridPos.y];
-            
+            var first = GetBlockAtPos(firstGridPos);
+            var lastGridPos = first.GridPos + swipeDir;
+            var second = GetBlockAtPos(lastGridPos);
+            if(!first || !second) yield break;
+
             // Move the chosen blocks
-            MoveSwipedBlocks();
-
-            StartCoroutine(DoAfter(0.1f, EvaluateBoardTillEnd));
+            MoveSwappedBlocks(first, second, () =>
+            {
+                if (GetMatchingBlocks().Count > 0)
+                {
+                    EvaluateBoardTillEnd();
+                }
+                else
+                    MoveSwappedBlocks(second, first, () =>
+                    {
+                        IsInputAllowed = true;
+                    });
+            });
             
             // Time to check if they have match
-            StartCoroutine(DoAfter(1f, () =>
-            {
-                if (!(_firstBlockOfSwipe == null || _lastBlockOfSwipe == null)) // If there is no matches
-                {
-                    MoveSwipedBlocks();
-                }
-            }));
+            // StartCoroutine(DoAfter(1f, () =>
+            // {
+            //     if (!(first == null || second == null)) // If there is no matches
+            //     {
+            //         MoveSwappedBlocks();
+            //     }
+            // }));
 
-            StartCoroutine(DoAfter(1.3f, () => { IsInputAllowed = true; }));
+            // StartCoroutine(DoAfter(1.3f, () => { IsInputAllowed = true; }));
         }
         
-        private void MoveSwipedBlocks()
+        private void MoveSwappedBlocks(Block first, Block second, Action callback = null)
         {
             // First make sure to store GridPos change infos
-            var firstGridPos = _firstBlockOfSwipe.GridPos;
-            var lastGridPos = _lastBlockOfSwipe.GridPos;
-            _firstBlockOfSwipe.GridPos = new Vector2Int(lastGridPos.x, lastGridPos.y);
-            _lastBlockOfSwipe.GridPos = new Vector2Int(firstGridPos.x, firstGridPos.y);
+            var firstGridPos = first.GridPos;
+            var lastGridPos = second.GridPos;
+            first.GridPos = new Vector2Int(lastGridPos.x, lastGridPos.y);
+            second.GridPos = new Vector2Int(firstGridPos.x, firstGridPos.y);
             
             // Then change the world positions
             var firstBlockPos = GetLocalPosForGridPos(lastGridPos.x, lastGridPos.y);
-            LeanTween.moveLocal(_firstBlockOfSwipe.gameObject, firstBlockPos, _BlockSwipeDuration);
+            LeanTween.moveLocal(first.gameObject, firstBlockPos, _BlockSwipeDuration).setOnComplete(callback);
             var lastBlockPos = GetLocalPosForGridPos(firstGridPos.x, firstGridPos.y);
-            LeanTween.moveLocal(_lastBlockOfSwipe.gameObject, lastBlockPos, _BlockSwipeDuration);
+            LeanTween.moveLocal(second.gameObject, lastBlockPos, _BlockSwipeDuration);
             
             // Last but not least: actually changing board array
-            _blocks[firstGridPos.x, firstGridPos.y] = _lastBlockOfSwipe;
-            _blocks[lastGridPos.x, lastGridPos.y] = _firstBlockOfSwipe;
+            _blocks[firstGridPos.x, firstGridPos.y] = second;
+            _blocks[lastGridPos.x, lastGridPos.y] = first;
         }
         
         private IEnumerator DoAfter(float waitTime, Action callback)
